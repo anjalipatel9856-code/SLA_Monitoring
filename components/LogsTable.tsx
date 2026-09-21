@@ -13,7 +13,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, total_pages: 1 });
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Filter States
+  // Filter States (Single Date & Date Range Filtering)
   const [serviceId, setServiceId] = useState<string>('all');
   const [statusType, setStatusType] = useState<'all' | 'success' | 'failed'>('all');
   const [fromDate, setFromDate] = useState<string>('');
@@ -68,19 +68,18 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
       
-      {/* Title & Filters Bar */}
+      {/* Title & Filter Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-white tracking-tight">Health Check Inspection Logs</h2>
+            <h2 className="text-base font-bold text-white tracking-tight">Health Check Telemetry Logs</h2>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">
               {pagination.total.toLocaleString()} Records Filtered
             </span>
           </div>
-          <p className="text-xs text-slate-400">Underlying monitoring check telemetry cleaned and stored in persistent database</p>
+          <p className="text-xs text-slate-400">Filter health check records by single date or custom date range</p>
         </div>
 
-        {/* Quick Date Presets */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={clearFilters}
@@ -91,7 +90,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
         </div>
       </div>
 
-      {/* Filter Controls Grid */}
+      {/* Filter Controls Grid: Single Date & Date Range */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         
         {/* Service Select */}
@@ -128,7 +127,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
           </select>
         </div>
 
-        {/* From Date */}
+        {/* From Date (Date Range Start / Single Date) */}
         <div>
           <label className="text-[11px] font-semibold text-slate-400 block mb-1">From Date</label>
           <input
@@ -139,7 +138,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
           />
         </div>
 
-        {/* To Date */}
+        {/* To Date (Date Range End) */}
         <div>
           <label className="text-[11px] font-semibold text-slate-400 block mb-1">To Date</label>
           <input
@@ -152,11 +151,11 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
 
         {/* Search Input */}
         <div>
-          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Keyword Search</label>
+          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Search Agent / Region</label>
           <form onSubmit={handleSearchSubmit} className="relative">
             <input
               type="text"
-              placeholder="Search agent, region..."
+              placeholder="Search keyword..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
@@ -169,7 +168,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
 
       </div>
 
-      {/* Logs Data Table */}
+      {/* Logs Table */}
       <div className="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
         <table className="w-full text-left text-xs text-slate-300">
           <thead className="bg-slate-900 border-b border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -193,7 +192,7 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
               <tr>
                 <td colSpan={5} className="py-12 text-center text-slate-400 font-sans">
                   <AlertCircle className="w-6 h-6 text-slate-500 mx-auto mb-2" />
-                  <span>No check records match the selected date or filter criteria.</span>
+                  <span>No records match the selected date filter criteria.</span>
                 </td>
               </tr>
             ) : (
@@ -244,8 +243,8 @@ export function LogsTable({ onRefreshStats }: LogsTableProps) {
       {pagination.total_pages > 1 && (
         <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
           <div>
-            Showing Page <strong className="text-white">{pagination.page}</strong> of{' '}
-            <strong className="text-white">{pagination.total_pages}</strong> ({pagination.total.toLocaleString()} records)
+            Page <strong className="text-white">{pagination.page}</strong> of{' '}
+            <strong className="text-white">{pagination.total_pages}</strong> ({pagination.total.toLocaleString()} total checks)
           </div>
 
           <div className="flex items-center gap-2">
