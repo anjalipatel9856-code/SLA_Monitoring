@@ -1,5 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import { CleanedHealthCheck, DataQualityReport, RawHealthCheckRow, RejectedRow } from './types';
+import { validateHealthCheckRow } from './validator';
 
 export interface ProcessedCSVResult {
   cleanedRows: CleanedHealthCheck[];
@@ -40,104 +41,48 @@ export function processCSVData(csvContent: string, batchId: string): ProcessedCS
   }
 
   records.forEach((row, index) => {
-    // 1. Service ID & Service Name validation
+    // Step 4: Run Data Validation Rules
+    const validation = validateHealthCheckRow(row);
+    if (!validation.isValid || !validation.parsedDate || validation.statusCode === undefined || validation.rawLatencyVal === undefined) {
+      if (validation.reason?.includes('timestamp')) invalid_ts_count++;
+      recordRejection(index, row, validation.reason || 'Validation failed');
+      return;
+    }
+
     const service_id = (row.service_id || '').trim();
     const service_name = (row.service_name || service_id).trim();
 
-    if (!service_id) {
-      recordRejection(index, row, 'Missing service_id');
-      return;
-    }
+    // Timestamp stats
+    const rawTs = String(row.timestamp || '').trim();
+    if (/^\d+$/.test(rawTs)) unix_count++;
+    else iso_count++;
 
-    // 2. Timestamp validation & normalization
-    let parsedDate: Date | null = null;
-    const rawTs = (row.timestamp !== undefined && row.timestamp !== null) ? String(row.timestamp).trim() : '';
+    const isoTimestamp = validation.parsedDate.toISOString();
 
-    if (!rawTs) {
-      invalid_ts_count++;
-      recordRejection(index, row, 'Missing timestamp');
-      return;
-    }
-
-    // Check if numeric unix epoch timestamp (seconds)
-    if (/^\d+$/.test(rawTs)) {
-      const epochSec = parseInt(rawTs, 10);
-      parsedDate = new Date(epochSec * 1000);
-      unix_count++;
-    } else {
-      parsedDate = new Date(rawTs);
-      if (!isNaN(parsedDate.getTime())) {
-        iso_count++;
-      }
-    }
-
-    if (!parsedDate || isNaN(parsedDate.getTime())) {
-      invalid_ts_count++;
-      recordRejection(index, row, `Invalid timestamp format: "${rawTs}"`);
-      return;
-    }
-
-    const isoTimestamp = parsedDate.toISOString();
-
-    // 3. Status Code validation
-    const rawStatus = (row.status_code !== undefined && row.status_code !== null) ? String(row.status_code).trim() : '';
-    const statusCode = parseInt(rawStatus, 10);
-
-    if (isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
-      recordRejection(index, row, `Invalid HTTP status code: "${rawStatus}"`);
-      return;
-    }
-
-    // 4. Latency Unit & Value validation
+    // Step 5: Data Cleaning & Latency Unit Conversion
     const rawUnit = (row.latency_unit || 'ms').trim().toLowerCase();
-    const rawLatencyStr = (row.latency !== undefined && row.latency !== null) ? String(row.latency).trim() : '';
-
     let latencyMs = 0;
-
-    if (!rawLatencyStr) {
-      if (statusCode >= 500) {
-        latencyMs = 0; // Default 0 for failed checks with missing latency
-      } else {
-        recordRejection(index, row, 'Missing latency value');
-        return;
-      }
+    if (rawUnit === 's') {
+      s_count++;
+      latencyMs = Math.round(validation.rawLatencyVal * 1000);
     } else {
-      const rawLatencyVal = parseFloat(rawLatencyStr);
-      if (isNaN(rawLatencyVal)) {
-        recordRejection(index, row, `Malformed non-numeric latency: "${rawLatencyStr}"`);
-        return;
-      }
-
-      if (rawLatencyVal < 0) {
-        recordRejection(index, row, `Negative latency value: ${rawLatencyVal}`);
-        return;
-      }
-
-      if (rawUnit === 's') {
-        s_count++;
-        latencyMs = Math.round(rawLatencyVal * 1000);
-      } else {
-        ms_count++;
-        latencyMs = Math.round(rawLatencyVal);
-      }
+      ms_count++;
+      latencyMs = Math.round(validation.rawLatencyVal);
     }
 
-    // 5. Agent & Region validation
     const agent = (row.agent || 'agent-unknown').trim();
     const region = (row.region || 'region-unknown').trim();
 
-    // 6. Deduplication check
+    // Deduplication by (service_id, timestamp)
     const dedupKey = `${service_id}:${isoTimestamp}`;
     if (seenKeys.has(dedupKey)) {
       duplicate_rows++;
       recordRejection(index, row, `Duplicate record for key (${dedupKey})`);
       return;
     }
-
     seenKeys.add(dedupKey);
 
-    // Success check condition
-    const is_success = statusCode >= 200 && statusCode < 300;
+    const is_success = validation.statusCode >= 200 && validation.statusCode < 300;
 
     cleanedRows.push({
       id: `${batchId}_${cleanedRows.length + 1}`,
@@ -145,7 +90,7 @@ export function processCSVData(csvContent: string, batchId: string): ProcessedCS
       service_id,
       service_name,
       timestamp: isoTimestamp,
-      status_code: statusCode,
+      status_code: validation.statusCode,
       is_success,
       latency_ms: latencyMs,
       agent,
