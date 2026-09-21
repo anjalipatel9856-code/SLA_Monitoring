@@ -1,0 +1,8 @@
+{
+  "name": "sla-lambda-cleaner",
+  "version": "1.0.0",
+  "main": "handler.js",
+  "dependencies": {
+    "csv-parse": "^5.5.6"
+  }
+}
